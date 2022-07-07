@@ -1,0 +1,24 @@
+{
+  "name": "utools-fund",
+  "version": "1.0.0",
+  "description": "",
+  "main": "preload.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MikuBlog/utools-fund.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/MikuBlog/utools-fund/issues"
+  },
+  "homepage": "https://github.com/MikuBlog/utools-fund#readme",
+  "dependencies": {
+    "axios": "^0.27.2",
+    "fs-extra": "^10.1.0",
+    "path": "^0.12.7"
+  }
+}

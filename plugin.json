@@ -1,0 +1,20 @@
+{
+  "version": "1.0.0",
+  "pluginName": "懒人基金小助手",
+  "homepage": "https://github.com/MikuBlog",
+  "logo": "logo.png",
+  "author": "xuanzai",
+  "preload": "preload.js",
+  "features": [
+    {
+      "code": "utools-fund",
+      "explain": "输入关键词或代号直接查涨跌，不墨迹！", 
+      "cmds": [
+        {
+					"type": "over",
+					"label": "懒人基金小助手"
+				}
+      ]
+    }
+  ]
+}
