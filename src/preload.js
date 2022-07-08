@@ -3,6 +3,8 @@ const { readFileSync, writeFileSync, ensureFileSync } = require('fs-extra');
 const { join } = require('path');
 const storagePathName = join(__dirname, './data.json');
 
+let selectItem = null;
+
 // 写入到json文件
 function writeToJson(data) {
    writeFileSync(storagePathName, JSON.stringify(data));
@@ -13,8 +15,22 @@ function readFromJson() {
    ensureFileSync(storagePathName);
    const result = readFileSync(storagePathName, 'utf8');
    return result
-   ? JSON.parse(result)
-   : '';
+      ? JSON.parse(result)
+      : '';
+}
+
+function transform(value) {
+   if (value > 0) {
+      return {
+         price: `+${value}%`,
+         icon: './assets/up.png',
+      }
+   } else {
+      return {
+         price: `${value}%`,
+         icon: './assets/down.png',
+      }
+   }
 }
 
 // 获取基金详情信息
@@ -29,10 +45,13 @@ async function getFundDetail(input) {
          data = JSON.parse(res.data.match(/({.*})/g)[0]);
       }
       if (data) {
+         const transformObj = transform(data.gszzl);
          return {
-            title: `${data.name}【${data.gszzl > 0 ? `+${data.gszzl}` : data.gszzl}%】`,
+            title: `${data.name}【${transformObj.price}】`,
             description: `当前净值估算：${data.gsz}\t昨日单位净值：${data.dwjz}`,
             url: `http://fund.eastmoney.com/${data.fundcode}.html?spm=search`,
+            icon: transformObj.icon,
+            code: data.fundcode,
          };
       }
    } catch (err) {
@@ -60,6 +79,11 @@ async function getFundFilterList(input) {
    }
    const filterList = readData.data.filter(val => val[2].indexOf(input) !== -1 || val[0] === input)
    return Promise.all(filterList.map(val => getFundDetail(val[0])));
+}
+
+// 获取指定基金列表
+async function getFundSaveList(codeList) {
+   return Promise.all(codeList.map(val => getFundDetail(val)));
 }
 
 // 请求入口
@@ -94,25 +118,100 @@ window.exports = {
    "utools-fund": {
       mode: "list",
       args: {
-         enter: (action, callbackSetList) => {
-            // 设置初始值
-            setTimeout(() => {
-               utools.setSubInputValue(action.payload);
-            });
-            handleOutput(action.payload, callbackSetList);
+         enter: async (action, callbackSetList) => {
+            callbackSetList([
+               {
+                  title: '我的自选加载中...',
+               }
+            ])
+            const record = utools.db.get('attention.list');
+            if (record && record.data && record.data.length) {
+               callbackSetList(await getFundSaveList(record.data));
+            } else {
+               callbackSetList([
+                  {
+                     title: '你还未加入任何自选基金'
+                  }
+               ])
+            }
          },
          search: async (action, searchWord, callbackSetList) => {
-            handleOutput(searchWord, callbackSetList);
+            if (!searchWord.includes('【')) {
+               handleOutput(searchWord, callbackSetList);
+            }
+            if (!searchWord) {
+               utools.redirect('懒人基金小助手');
+            }
          },
          // 用户选择列表中某个条目时被调用
-         select: (action, itemData) => {
-            window.utools.hideMainWindow()
-            const url = itemData.url
-            require('electron').shell.openExternal(url)
-            // 保证网页正常跳转再关闭插件
-            setTimeout(() => {
-               window.utools.outPlugin()
-            }, 500);
+         select: (action, itemData, callbackSetList) => {
+            const code = itemData.code
+            const record = utools.db.get('attention.list');
+            const data = record ? new Set(record.data) : new Set();
+            const save = () => {
+               if (record) {
+                  utools.db.put({
+                     _id: 'attention.list',
+                     data: Array.from(data),
+                     _rev: record._rev
+                  })
+               } else {
+                  utools.db.put({
+                     _id: 'attention.list',
+                     data: Array.from(data)
+                  })
+               }
+               utools.redirect('懒人基金小助手');
+            }
+            if (itemData.action) {
+               switch (itemData.action) {
+                  case 'save':
+                     data.add(code)
+                     save()
+                     break
+                  case 'remove':
+                     data.delete(code)
+                     save()
+                     break
+                  case 'open':
+                     window.utools.hideMainWindow()
+                     require('electron').shell.openExternal(itemData.url)
+                     // 保证网页正常跳转再关闭插件
+                     setTimeout(() => {
+                        window.utools.outPlugin()
+                     }, 500);
+                     break
+               }
+            } else {
+               utools.setSubInputValue(itemData.title)
+               let renderList = []
+               if (data && data.has(code)) {
+                  renderList.push({
+                     title: '打开详情',
+                     action: 'open',
+                     url: itemData.url,
+                     code
+                  })
+                  renderList.push({
+                     title: '移出自选',
+                     action: 'remove',
+                     code
+                  })
+               } else {
+                  renderList.push({
+                     title: '加入自选',
+                     action: 'save',
+                     code
+                  })
+                  renderList.push({
+                     title: '打开详情',
+                     action: 'open',
+                     url: itemData.url,
+                     code
+                  })
+               }
+               callbackSetList(renderList)
+            }
          },
          placeholder: '请输入基金名称或代码',
       },
